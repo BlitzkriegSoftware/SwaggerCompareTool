@@ -8,9 +8,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.editorconfig = .editorconfig
 		LICENSE = LICENSE
 		README.md = README.md
+		swagger2.json = swagger2.json
+		swagger3.json = swagger3.json
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SwaggerCompareTool", "SwaggerCompareTool\SwaggerCompareTool.csproj", "{FE405C9F-93FD-4ACE-9993-73D454F4D765}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SwaggerCompareTool", "SwaggerCompareTool\SwaggerCompareTool.csproj", "{FE405C9F-93FD-4ACE-9993-73D454F4D765}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

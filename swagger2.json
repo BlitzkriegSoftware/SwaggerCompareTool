@@ -1,0 +1,315 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Customer API .NET Core 3.1",
+    "description": "Customer API .NET Core 3.1",
+    "contact": {
+      "name": "Stuart Williams",
+      "url": "https://github.com/blitzkriegsoftware/customerapi",
+      "email": "spookdejur@hotmail.com"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    },
+    "version": "3.2.4"
+  },
+  "paths": {
+    "/v2/Person/IdList": {
+      "get": {
+        "tags": [
+          "Customer"
+        ],
+        "summary": "Id List (get)",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/Person/{id}": {
+      "get": {
+        "tags": [
+          "Customer"
+        ],
+        "summary": "Get by Id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id to get",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Id to get",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad ID value",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ID Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/Person/Search/{text}": {
+      "get": {
+        "tags": [
+          "Customer"
+        ],
+        "summary": "Search for people",
+        "parameters": [
+          {
+            "name": "text",
+            "in": "path",
+            "description": "Search Text",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Search Text",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Customer"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing Search Text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/Person/First/{text}": {
+      "get": {
+        "tags": [
+          "Customer"
+        ],
+        "summary": "Return the 1st match of a search",
+        "parameters": [
+          {
+            "name": "text",
+            "in": "path",
+            "description": "Search Text",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Search Text",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AddressKind": {
+        "enum": [
+          0,
+          1,
+          2
+        ],
+        "type": "integer",
+        "description": "Kind of Address",
+        "format": "int32"
+      },
+      "Address": {
+        "type": "object",
+        "properties": {
+          "address1": {
+            "type": "string",
+            "description": "Primary Delivery Address",
+            "nullable": true
+          },
+          "address2": {
+            "type": "string",
+            "description": "Appt #, etc/",
+            "nullable": true
+          },
+          "city": {
+            "type": "string",
+            "description": "City",
+            "nullable": true
+          },
+          "state": {
+            "type": "string",
+            "description": "State of Provence",
+            "nullable": true
+          },
+          "zip": {
+            "type": "string",
+            "description": "Zip Code",
+            "nullable": true
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AddressKind"
+          }
+        },
+        "description": "Address"
+      },
+      "Customer": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string",
+            "description": "PK of Person\r\n<br>Mongo DB is super fussy about this name",
+            "nullable": true
+          },
+          "nameLast": {
+            "type": "string",
+            "description": "Last Name",
+            "nullable": true
+          },
+          "nameFirst": {
+            "type": "string",
+            "description": "First Name",
+            "nullable": true
+          },
+          "eMail": {
+            "type": "string",
+            "description": "E-Mail",
+            "nullable": true
+          },
+          "company": {
+            "type": "string",
+            "description": "Company",
+            "nullable": true
+          },
+          "birthday": {
+            "type": "string",
+            "description": "Birthday",
+            "format": "date-time"
+          },
+          "addresses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Address"
+            },
+            "description": "Address List",
+            "nullable": true,
+            "readOnly": true
+          },
+          "preference": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Preferences",
+            "nullable": true,
+            "readOnly": true
+          }
+        },
+        "description": "Person"
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

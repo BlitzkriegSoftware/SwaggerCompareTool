@@ -3,7 +3,6 @@ using System.IO;
 using CommandLine;
 using CommandLine.Text;
 
-
 namespace SwaggerCompareTool
 {
     class Program
@@ -12,14 +11,13 @@ namespace SwaggerCompareTool
         static int exitCode = 0; // Zero is good, not zero is bad
         #endregion
 
-
         static void Main(string[] args)
         {
             #region "Global error handler"
             // Notice a not handled exception from UOW will be caught by global error handler
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
             #endregion
-            
+
             Console.WriteLine($"{HeadingInfo.Default} {CopyrightInfo.Default}");
 
             Parser.Default.ParseArguments<Models.SwaggerCompareToolOptions>(args)
@@ -28,7 +26,7 @@ namespace SwaggerCompareTool
                        var arguments = CommandLine.Parser.Default.FormatCommandLine(o);
                        Console.WriteLine($"{arguments}");
 
-                       if(!File.Exists(o.Current))
+                       if (!File.Exists(o.Current))
                        {
                            Console.Error.WriteLine($"Current JSON Not Found: {o.Current}");
                            exitCode = -2;
@@ -40,7 +38,7 @@ namespace SwaggerCompareTool
                            exitCode = -3;
                        }
 
-                       if(File.Exists(o.RuleFile))
+                       if (File.Exists(o.RuleFile))
                        {
                            // TODO: Rule file
                        }
@@ -80,4 +78,6 @@ namespace SwaggerCompareTool
         }
 
         #endregion
+
     }
+}
