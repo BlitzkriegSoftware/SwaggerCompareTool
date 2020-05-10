@@ -1,7 +1,15 @@
 ﻿using System;
+using System.Linq;
 using System.IO;
 using CommandLine;
 using CommandLine.Text;
+using Microsoft.OpenApi.Extensions;
+using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi.Readers.ParseNodes;
+using Microsoft.OpenApi.Readers;
+using System.Collections.Generic;
+using System.Net.NetworkInformation;
+using System.Linq;
 
 namespace SwaggerCompareTool
 {
@@ -43,9 +51,53 @@ namespace SwaggerCompareTool
                            // TODO: Rule file
                        }
 
+                       var streamCurrent = new MemoryStream(File.ReadAllBytes(o.Current));
+                       var currentApi =  new OpenApiStreamReader().Read(streamCurrent, out var diagnosticCurrent);
 
+                       if(diagnosticCurrent.Errors.Count > 0)
+                       {
+                           exitCode = -4;
+                           Console.Error.WriteLine($"{o.Current} {diagnosticCurrent.SpecificationVersion} - Errors:");
+                           foreach (var e in diagnosticCurrent.Errors)
+                           {
+                               Console.Error.WriteLine($"\t{e.Message} at {e.Pointer}");
+                           }
+                       }
 
+                       var streamPrevious = new MemoryStream(File.ReadAllBytes(o.Previous));
+                       var previousApi = new OpenApiStreamReader().Read(streamPrevious, out var diagnosticPrevious);
 
+                       if (diagnosticCurrent.Errors.Count > 0)
+                       {
+                           exitCode = -5;
+                           Console.Error.WriteLine($"{o.Current} {diagnosticPrevious.SpecificationVersion} - Errors:");
+                           foreach (var e in diagnosticPrevious.Errors)
+                           {
+                               Console.Error.WriteLine($"\t{e.Message} at {e.Pointer}");
+                           }
+                       }
+
+                       if(exitCode == 0)
+                       {
+                           var complaints = SwaggerCompare(currentApi, previousApi);
+                           exitCode = SwaggerIsBroken(complaints) ? 1 : 0;
+                           
+                           if(o.ExcelCsv)
+                           {
+                               ExcelCsvDump(complaints, o);
+                           }
+
+                           if(o.JsonDump)
+                           {
+                               JsonDump(complaints, o);
+                           }
+
+                           if(o.WebReport)
+                           {
+                               WebReport(complaints, o);
+                           }
+                          
+                       }
 
                    }).WithNotParsed(errs =>
                    {
@@ -59,6 +111,48 @@ namespace SwaggerCompareTool
             Environment.ExitCode = exitCode;
         }
 
+        public static bool SwaggerIsBroken(List<Models.SwaggerCompareItem> complaints)
+        {
+            bool isBroken = false;
+            if (complaints != null)
+            {
+                foreach (var c in complaints)
+                {
+                    if((c.Severity == Models.SwaggerErrorSeverity.Critical) ||
+                       (c.Severity == Models.SwaggerErrorSeverity.Error))
+                    {
+                        isBroken = true;
+                        break;
+                    }
+                }
+            }
+            return isBroken;
+        }
+
+        public static List<Models.SwaggerCompareItem> SwaggerCompare(OpenApiDocument current, OpenApiDocument previous)
+        {
+            var c = new List<Models.SwaggerCompareItem>();
+
+
+
+            c = c.OrderBy(p => (int)p.Severity).ThenBy(p => (int)p.Element).ToList();
+            return c;
+        }
+
+        public static void ExcelCsvDump(List<Models.SwaggerCompareItem> c, Models.SwaggerCompareToolOptions o)
+        {
+
+        }
+
+        public static void JsonDump(List<Models.SwaggerCompareItem> c, Models.SwaggerCompareToolOptions o)
+        {
+
+        }
+
+        public static void WebReport(List<Models.SwaggerCompareItem> c, Models.SwaggerCompareToolOptions o)
+        {
+
+        }
 
         #region "Global Error Handler"
 
