@@ -27,6 +27,9 @@ namespace SwaggerCompareTool.Models
         [Option('r', "RuleFile", Default = "", HelpText = "Rule File")]
         public string RuleFile { get; set; }
 
+        [Option('o', "OutputFolder", Default = @".\", HelpText = "Output Folder for Reports")]
+        public string OutputFolder { get; set; } = @".\";
+
         public string ReportName { get; set; } = "SwaggerCompareReport.txt";
 
         /// <summary>

@@ -2,7 +2,7 @@
   "profiles": {
     "SwaggerCompareTool": {
       "commandName": "Project",
-      "commandLineArgs": "-v -c C:\\code\\blitz\\SwaggerCompareTool\\swagger3.json -p C:\\code\\blitz\\SwaggerCompareTool\\swagger2.json -w -j -e"
+      "commandLineArgs": "-v -c C:\\code\\blitz\\SwaggerCompareTool\\swagger3.json -p C:\\code\\blitz\\SwaggerCompareTool\\swagger2.json -w -j -e -o c:\\temp\\"
     }
   }
 }

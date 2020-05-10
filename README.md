@@ -16,29 +16,31 @@ SwaggerCompareTool 1.1.0
 Copyright c 2019-2020 Blitzkrieg Software
 USAGE:
 Useful:
-  SwaggerCompareTool --Current current.json --Excel --Previous previous.json --Verbose --web-report
+  SwaggerCompareTool --Current current.json --Excel --OutputFolder .\ --Previous previous.json --Verbose --web-report
 Minimal:
-  SwaggerCompareTool --Current current.json --Excel --Previous previous.json
+  SwaggerCompareTool --Current current.json --Excel --OutputFolder .\ --Previous previous.json
 With Rules:
-  SwaggerCompareTool --Current current.json --Excel --Previous previous.json --RuleFile rules.json
+  SwaggerCompareTool --Current current.json --Excel --OutputFolder .\ --Previous previous.json --RuleFile rules.json
 
-  -v, --Verbose       (Default: false) Enable Verbose Output
+  -v, --Verbose         (Default: false) Enable Verbose Output
 
-  -c, --Current       Required. Current OpenAPI Json
+  -c, --Current         Required. Current OpenAPI Json
 
-  -p, --Previous      Required. Previous OpenAPI Json
+  -p, --Previous        Required. Previous OpenAPI Json
 
-  -w, --web-report    (Default: true) HTML Report
+  -w, --web-report      (Default: true) HTML Report
 
-  -j, --JsonDump      (Default: false) JSON Dump
+  -j, --JsonDump        (Default: false) JSON Dump
 
-  -e, --Excel         (Default: false) CSV for Excel
+  -e, --Excel           (Default: false) CSV for Excel
 
-  -r, --RuleFile      (Default: ) Rule File
+  -r, --RuleFile        (Default: ) Rule File
 
-  --help              Display this help screen.
+  -o, --OutputFolder    (Default: .\) Output Folder for Reports
 
-  --version           Display version information.
+  --help                Display this help screen.
+
+  --version             Display version information.
 ```
 
 > -r is a future feature and does nothing (yet)
