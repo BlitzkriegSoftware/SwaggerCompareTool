@@ -139,20 +139,106 @@ namespace SwaggerCompareTool
             return c;
         }
 
+        #region "Reports"
+
         public static void ExcelCsvDump(List<Models.SwaggerCompareItem> c, Models.SwaggerCompareToolOptions o)
         {
+            var reportName = Path.ChangeExtension(o.ReportName, ".csv");
+            if (File.Exists(reportName)) File.Delete(reportName);
+            if (c.Count > 0)
+            {
+                using (var file = new System.IO.StreamWriter(reportName))
+                {
+                    file.Write('"');
+                    file.Write("Severity");
+                    file.Write('"');
+                    file.Write(',');
+                    file.Write('"');
+                    file.Write("Element");
+                    file.Write('"');
+                    file.Write(',');
+                    file.Write('"');
+                    file.Write("Element Name");
+                    file.Write('"');
+                    file.Write(',');
+                    file.Write('"');
+                    file.Write("Message");
+                    file.WriteLine('"');
 
+                    foreach (var d in c)
+                    {
+                        file.Write('"');
+                        file.Write(d.Severity);
+                        file.Write('"');
+                        file.Write(",");
+                        file.Write('"');
+                        file.Write(d.Element);
+                        file.Write('"');
+                        file.Write(",");
+                        file.Write('"');
+                        file.Write(d.ElementName);
+                        file.Write('"');
+                        file.Write(",");
+                        file.Write('"');
+                        file.Write(d.Message);
+                        file.WriteLine('"');
+                    }
+                }
+            }
+            Console.WriteLine($"CSV: {reportName}");
         }
 
         public static void JsonDump(List<Models.SwaggerCompareItem> c, Models.SwaggerCompareToolOptions o)
         {
+            var reportName = Path.ChangeExtension(o.ReportName, ".json");
+            if (File.Exists(reportName)) File.Delete(reportName);
 
+            var json = Newtonsoft.Json.JsonConvert.SerializeObject(c);
+
+            File.WriteAllText(reportName, json);
+
+            Console.WriteLine($"JSON: {reportName}");
         }
 
         public static void WebReport(List<Models.SwaggerCompareItem> c, Models.SwaggerCompareToolOptions o)
         {
+            var reportName = Path.ChangeExtension(o.ReportName, ".html");
+            if (File.Exists(reportName)) File.Delete(reportName);
+            using (var file = new System.IO.StreamWriter(reportName))
+            {
+                file.WriteLine(HtmlReportParts.Top);
 
+                file.WriteLine($"<h1>Swagger Compare Report {DateTime.Now:f}</h1>");
+                file.WriteLine("<div class='container-fluid'>");
+
+                if (c.Count > 0)
+                {
+                    file.WriteLine("<div class='row'>");
+                    file.Write("<div class='col-sm'><strong>Severity</strong></div>");
+                    file.Write("<div class='col-sm'><strong>Component</strong></div>");
+                    file.Write("<div class='col-sm'><strong>Element</strong></div>");
+                    file.WriteLine("<div class='col-sm'><strong>Message</strong></div>");
+                    file.WriteLine("</div>");
+                    foreach(var d in c)
+                    {
+                        file.WriteLine("<div class='row'>");
+                        file.Write($"<div class='col-sm'>{(int) d.Severity} {d.Severity}</div>");
+                        file.Write($"<div class='col-sm'>{d.Element}</div>");
+                        file.Write($"<div class='col-sm'>{d.ElementName}</div>");
+                        file.WriteLine($"<div class='col-sm'>{d.Message}</div>");
+                        file.WriteLine("</div>");
+                    }
+                } else
+                {
+                    file.WriteLine("<p>No Problems Detected...</p>");
+                }
+                file.WriteLine("</div>");
+                file.WriteLine(HtmlReportParts.Bottom);
+            }
+            Console.WriteLine($"HTML: {reportName}");
         }
+
+        #endregion
 
         #region "Global Error Handler"
 
