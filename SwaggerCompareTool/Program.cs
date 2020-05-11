@@ -1,16 +1,12 @@
-﻿using System;
-using System.Linq;
-using System.IO;
-using CommandLine;
+﻿using CommandLine;
 using CommandLine.Text;
-using Microsoft.OpenApi.Extensions;
 using Microsoft.OpenApi.Models;
-using Microsoft.OpenApi.Readers.ParseNodes;
 using Microsoft.OpenApi.Readers;
+using System;
 using System.Collections.Generic;
-using System.Net.NetworkInformation;
+using System.IO;
 using System.Linq;
-using System.Collections.Immutable;
+using System.Text;
 
 namespace SwaggerCompareTool
 {
@@ -147,15 +143,18 @@ namespace SwaggerCompareTool
                 });
             }
 
-            if (current.Info.TermsOfService?.ToString().CompareTo(previous.Info.TermsOfService?.ToString()) != 0)
+            if ((current.Info.TermsOfService != null) && (previous.Info.TermsOfService != null))
             {
-                c.Add(new Models.SwaggerCompareItem()
+                if (current.Info.TermsOfService?.ToString().CompareTo(previous.Info.TermsOfService?.ToString()) != 0)
                 {
-                    Severity = Models.SwaggerErrorSeverity.Information,
-                    Element = Models.SwaggerCompareElement.Info,
-                    ElementName = "TermsOfService",
-                    Message = $"{previous.Info.TermsOfService?.ToString()} => {current.Info.TermsOfService?.ToString()}"
-                });
+                    c.Add(new Models.SwaggerCompareItem()
+                    {
+                        Severity = Models.SwaggerErrorSeverity.Information,
+                        Element = Models.SwaggerCompareElement.Info,
+                        ElementName = "TermsOfService",
+                        Message = $"{previous.Info.TermsOfService?.ToString()} => {current.Info.TermsOfService?.ToString()}"
+                    });
+                }
             }
 
             if (current.Info.Description.CompareTo(previous.Info.Description) != 0)
@@ -306,10 +305,10 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = Models.SwaggerErrorSeverity.Error,
                         Element = Models.SwaggerCompareElement.Paths,
                         ElementName = "Paths.Key",
-                        Message = $"Current Missing Key: {d.Key}"
+                        Message = $"Previous Missing Key: {d.Key}"
                     });
                 }
                 else
@@ -318,7 +317,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = Models.SwaggerErrorSeverity.Error,
                             Element = Models.SwaggerCompareElement.Paths,
                             ElementName = "Paths.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Current: {d.Value}, Previous: {item.Value}"
@@ -334,10 +333,10 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = Models.SwaggerErrorSeverity.Error,
                         Element = Models.SwaggerCompareElement.Paths,
                         ElementName = "Paths.Key",
-                        Message = $"Previous Missing Key: {d.Key}"
+                        Message = $"Current Missing Key: {d.Key}"
                     });
                 }
                 else
@@ -346,7 +345,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = Models.SwaggerErrorSeverity.Error,
                             Element = Models.SwaggerCompareElement.Paths,
                             ElementName = "Paths.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Previous: {d.Value}, Current: {item.Value}"
@@ -822,14 +821,14 @@ namespace SwaggerCompareTool
                 }
                 else
                 {
-                    if (!d.Value.Equals(item.Value))
+                    if (!AreEqual(d.Value, item.Value))
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
                             Severity = Models.SwaggerErrorSeverity.Warning,
                             Element = Models.SwaggerCompareElement.Paths,
                             ElementName = "Schemas.Key.Value",
-                            Message = $"Missmatched Value: {d.Key}: Current: {d.Value}, Previous: {item.Value}"
+                            Message = $"Missmatched Value: {d.Key}: Current: {ToReport(d.Value)}, Previous: {ToReport(item.Value)}"
                         });
                     }
                 }
@@ -850,14 +849,14 @@ namespace SwaggerCompareTool
                 }
                 else
                 {
-                    if (!d.Value.Equals(item.Value))
+                    if (!AreEqual(d.Value,item.Value))
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
                             Severity = Models.SwaggerErrorSeverity.Warning,
                             Element = Models.SwaggerCompareElement.Components,
                             ElementName = "Schemas.Key.Value",
-                            Message = $"Missmatched Value: {d.Key}: Previous: {d.Value}, Current: {item.Value}"
+                            Message = $"Missmatched Value: {d.Key}: Previous: {ToReport(d.Value)}, Current: {ToReport(item.Value)}"
                         });
                     }
                 }
@@ -1154,9 +1153,225 @@ namespace SwaggerCompareTool
 
             #endregion
 
-            c = c.OrderBy(p => (int)p.Severity).ThenBy(p => (int)p.Element).ToList();
+            c = c.OrderByDescending(p => (int)p.Severity).ThenBy(p => (int)p.Element).ThenBy(p => p.ElementName).ToList();
             return c;
         }
+
+        public static bool AreEqual(OpenApiSchema a, OpenApiSchema b)
+        {
+            return (
+                a.Deprecated.Equals(b.Deprecated) &&
+                (!string.IsNullOrWhiteSpace(a.Description) && !string.IsNullOrWhiteSpace(b.Description) &&  a.Description.Equals(b.Description)) &&
+                (a.ExclusiveMaximum.HasValue && b.ExclusiveMaximum.HasValue && a.ExclusiveMaximum.Equals(b.ExclusiveMaximum)) &&
+                (a.ExclusiveMinimum.HasValue && b.ExclusiveMinimum.HasValue && a.ExclusiveMinimum.Equals(b.ExclusiveMinimum)) &&
+                (!string.IsNullOrWhiteSpace(a.Format) && !string.IsNullOrWhiteSpace(b.Format) && a.Format.Equals(b.Format)) &&
+                (a.Maximum.HasValue && b.Maximum.HasValue && a.Maximum.Equals(b.Maximum)) &&
+                (a.MaxItems.HasValue && b.MaxItems.HasValue && a.MaxItems.Equals(b.MaxItems)) &&
+                (a.MaxLength.HasValue && b.MaxLength.HasValue && a.MaxLength.Equals(b.MaxLength)) &&
+                (a.MaxProperties.HasValue && b.MaxProperties.HasValue && a.MaxProperties.Equals(b.MaxProperties)) &&
+                (a.Minimum.HasValue && b.Minimum.HasValue && a.Minimum.Equals(b.Minimum)) &&
+                (a.MinItems.HasValue && b.MinItems.HasValue && a.MinItems.Equals(b.MinItems)) &&
+                (a.MinLength.HasValue && b.MinLength.HasValue && a.MinLength.Equals(b.MinLength)) &&
+                (a.MinProperties.HasValue && b.MinProperties.HasValue && a.MinProperties.Equals(b.MinProperties)) &&
+                (a.MultipleOf.HasValue && b.MultipleOf.HasValue && a.MultipleOf.Equals(b.MultipleOf) ) &&
+                a.Nullable.Equals(b.Nullable) &&
+                (!string.IsNullOrWhiteSpace(a.Pattern) && !string.IsNullOrWhiteSpace(b.Pattern) && a.Pattern.Equals(b.Pattern)) &&
+                a.ReadOnly.Equals(b.ReadOnly) &&
+                (!string.IsNullOrWhiteSpace(a.Title) && !string.IsNullOrWhiteSpace(b.Title) && a.Title.Equals(b.Title)) &&
+                (!string.IsNullOrWhiteSpace(a.Type) && !string.IsNullOrWhiteSpace(b.Type) && a.Type.Equals(b.Type)) &&
+                (a.UniqueItems.HasValue && b.UniqueItems.HasValue && a.UniqueItems.Equals(b.UniqueItems)) &&
+                a.UnresolvedReference.Equals(b.UnresolvedReference) &&
+                a.WriteOnly.Equals(b.WriteOnly)
+                );
+        }
+
+
+        public static string ToReport(OpenApiSchema s, string sep = "; ")
+        {
+            var sb = new StringBuilder();
+
+            if (s.AdditionalProperties != null)
+            {
+                //sb.Append(s.AdditionalProperties.ToReport());
+            }
+
+            sb.Append($"Additional Properties Allowed: {s.AdditionalPropertiesAllowed}{sep}");
+            sb.Append($"Deprecated: {s.Deprecated}{sep}");
+            sb.Append($"Description: {s.Description}{sep}");
+            if (s.Discriminator != null)
+            {
+                sb.Append($"Discriminator: {s.Discriminator.PropertyName}{sep}");
+            }
+
+            if (s.Enum != null)
+            {
+                sb.Append("Enum: ");
+                foreach (var k in s.Enum)
+                {
+                    sb.Append(k.ToString());
+                    sb.Append(',');
+                }
+                sb.Append(sep);
+            }
+
+            if (s.Default != null)
+            {
+                sb.Append($"Default: {s.Default.AnyType} {sep}");
+            }
+
+            if (s.Example != null)
+            {
+                sb.Append($"Example: {s.Example}{sep}");
+            }
+
+            if (s.ExclusiveMaximum.HasValue)
+            {
+                sb.Append($"ExclusiveMaximum: {s.ExclusiveMaximum}{sep}");
+            }
+
+            if (s.ExclusiveMinimum.HasValue)
+            {
+                sb.Append($"ExclusiveMinimum: {s.ExclusiveMinimum}{sep}");
+            }
+
+            if (s.Extensions != null)
+            {
+                sb.Append("Extensions: ");
+                foreach (var d in s.Extensions)
+                {
+                    sb.Append($"{d.Key}: {d.Value}, ");
+                }
+                sb.Append(sep);
+            }
+
+            if (s.ExternalDocs != null)
+            {
+                sb.Append($"Ext. Docs: {s.ExternalDocs.Description} @ {s.ExternalDocs.Url} {sep}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(s.Format))
+            {
+                sb.Append($"Format: {s.Format}{sep}");
+            }
+
+            if (s.Items != null)
+            {
+                // TODO
+            }
+
+            if (s.Maximum.HasValue)
+            {
+                sb.Append($"Maximum: {s.Maximum}{sep}");
+            }
+
+            if (s.MaxItems.HasValue)
+            {
+                sb.Append($"Max Items: {s.MaxItems}{sep}");
+            }
+
+            if (s.MaxLength.HasValue)
+            {
+                sb.Append($"Max Length: {s.MaxLength}{sep}");
+            }
+
+            if (s.MaxProperties.HasValue)
+            {
+                sb.Append($"Max Properties: {s.MaxProperties}{sep}");
+            }
+
+            if (s.Minimum.HasValue)
+            {
+                sb.Append($"Minimum: {s.Minimum}{sep}");
+            }
+
+            if (s.MinItems.HasValue)
+            {
+                sb.Append($"Min Items: {s.MinItems}{sep}");
+            }
+
+            if (s.MinLength.HasValue)
+            {
+                sb.Append($"Min Length: {s.MinLength}{sep}");
+            }
+
+            if (s.MinProperties.HasValue)
+            {
+                sb.Append($"Min Properties: {s.MinProperties}{sep}");
+            }
+
+            if (s.MultipleOf.HasValue)
+            {
+                sb.Append($"Multiple Of: {s.MultipleOf}{sep}");
+            }
+
+            if (s.Not != null)
+            {
+                sb.Append($"Not: {s.Not}{sep}");
+            }
+
+            sb.Append($"Nullable: {s.Nullable}{sep}");
+
+            if (s.OneOf != null)
+            {
+                foreach (var d in s.OneOf)
+                {
+                    // TODO
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(s.Pattern))
+            {
+                sb.Append($"Pattern: {s.Pattern}{sep}");
+            }
+
+            if (s.Properties != null)
+            {
+                sb.Append("Properties: ");
+                foreach (var d in s.Properties)
+                {
+                    sb.Append($"{d.Key}:{d.Value}, ");
+                }
+                sb.Append(sep);
+            }
+
+            sb.Append($"ReadOnly: {s.ReadOnly}{sep}");
+
+            if (s.Reference != null)
+            {
+                sb.Append($"{s.Reference.ExternalResource}, {s.Reference.Id}, {s.Reference?.Type}{sep}");
+            }
+
+            if(s.Required != null)
+            {
+                sb.Append("Required: ");
+                foreach(var d in s.Required)
+                {
+                    sb.Append($"{d}, ");
+                }
+                sb.Append(sep);
+            }
+
+            sb.Append($"Title: {s.Title}{sep}");
+
+            sb.Append($"Type: {s.Type}{sep}");
+
+            if(s.UniqueItems.HasValue)
+            {
+                sb.Append($"Unique Items: {s.UniqueItems}{sep}");
+            }
+
+            sb.Append($"Unresolved Reference: {s.UnresolvedReference}{sep}");
+
+            sb.Append($"Write Only: {s.WriteOnly}{sep}");
+
+            if((s.Xml != null) && !string.IsNullOrWhiteSpace(s.Xml.Name))
+            {
+                sb.Append($"XML Name: {s.Xml.Name}{sep}");
+            }
+
+            return sb.ToString();
+        }
+
 
         #region "Reports"
 
