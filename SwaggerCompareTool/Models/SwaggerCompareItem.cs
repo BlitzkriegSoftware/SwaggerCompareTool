@@ -1,9 +1,8 @@
-﻿using Microsoft.OpenApi.Extensions;
-using Microsoft.OpenApi.Models;
+﻿using Microsoft.OpenApi.Models;
 using Newtonsoft.Json.Linq;
-using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Text.Json;
 
 namespace SwaggerCompareTool.Models
 {
@@ -140,7 +139,7 @@ namespace SwaggerCompareTool.Models
 
                 if (s.Items != null)
                 {
-                    // TODO
+                    sb.Append($"Items: {JsonSerializer.Serialize(s.Items)}{sep}");
                 }
 
                 if (s.Maximum.HasValue)
@@ -199,7 +198,7 @@ namespace SwaggerCompareTool.Models
                 {
                     foreach (var d in s.OneOf)
                     {
-                        // TODO
+                        sb.Append($"OneOf: {JsonSerializer.Serialize(d)}{sep}");
                     }
                 }
 
