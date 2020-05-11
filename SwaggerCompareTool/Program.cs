@@ -2,6 +2,7 @@
 using CommandLine.Text;
 using Microsoft.OpenApi.Models;
 using Microsoft.OpenApi.Readers;
+using SwaggerCompareTool.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -821,14 +822,17 @@ namespace SwaggerCompareTool
                 }
                 else
                 {
-                    if (!AreEqual(d.Value, item.Value))
+                    var complaints = new List<string>();
+                    if (!SwaggerCompareItem.AreEqual(d.Value, item.Value, complaints))
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
                             Severity = Models.SwaggerErrorSeverity.Warning,
                             Element = Models.SwaggerCompareElement.Paths,
                             ElementName = "Schemas.Key.Value",
-                            Message = $"Missmatched Value: {d.Key}: Current: {ToReport(d.Value)}, Previous: {ToReport(item.Value)}"
+                            Message = $"Missmatched Value: {d.Key}: {List2String(complaints, "; ")}",
+                            CurrentSchema = d.Value,
+                            PreviousSchema = item.Value
                         });
                     }
                 }
@@ -849,14 +853,17 @@ namespace SwaggerCompareTool
                 }
                 else
                 {
-                    if (!AreEqual(d.Value,item.Value))
+                    var complaints = new List<string>();
+                    if (!SwaggerCompareItem.AreEqual(d.Value,item.Value, complaints))
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
                             Severity = Models.SwaggerErrorSeverity.Warning,
                             Element = Models.SwaggerCompareElement.Components,
                             ElementName = "Schemas.Key.Value",
-                            Message = $"Missmatched Value: {d.Key}: Previous: {ToReport(d.Value)}, Current: {ToReport(item.Value)}"
+                            Message = $"Missmatched Value: {d.Key}: {List2String(complaints, "; ")}",
+                            PreviousSchema = d.Value,
+                            CurrentSchema = item.Value
                         });
                     }
                 }
@@ -1157,222 +1164,6 @@ namespace SwaggerCompareTool
             return c;
         }
 
-        public static bool AreEqual(OpenApiSchema a, OpenApiSchema b)
-        {
-            return (
-                a.Deprecated.Equals(b.Deprecated) &&
-                (!string.IsNullOrWhiteSpace(a.Description) && !string.IsNullOrWhiteSpace(b.Description) &&  a.Description.Equals(b.Description)) &&
-                (a.ExclusiveMaximum.HasValue && b.ExclusiveMaximum.HasValue && a.ExclusiveMaximum.Equals(b.ExclusiveMaximum)) &&
-                (a.ExclusiveMinimum.HasValue && b.ExclusiveMinimum.HasValue && a.ExclusiveMinimum.Equals(b.ExclusiveMinimum)) &&
-                (!string.IsNullOrWhiteSpace(a.Format) && !string.IsNullOrWhiteSpace(b.Format) && a.Format.Equals(b.Format)) &&
-                (a.Maximum.HasValue && b.Maximum.HasValue && a.Maximum.Equals(b.Maximum)) &&
-                (a.MaxItems.HasValue && b.MaxItems.HasValue && a.MaxItems.Equals(b.MaxItems)) &&
-                (a.MaxLength.HasValue && b.MaxLength.HasValue && a.MaxLength.Equals(b.MaxLength)) &&
-                (a.MaxProperties.HasValue && b.MaxProperties.HasValue && a.MaxProperties.Equals(b.MaxProperties)) &&
-                (a.Minimum.HasValue && b.Minimum.HasValue && a.Minimum.Equals(b.Minimum)) &&
-                (a.MinItems.HasValue && b.MinItems.HasValue && a.MinItems.Equals(b.MinItems)) &&
-                (a.MinLength.HasValue && b.MinLength.HasValue && a.MinLength.Equals(b.MinLength)) &&
-                (a.MinProperties.HasValue && b.MinProperties.HasValue && a.MinProperties.Equals(b.MinProperties)) &&
-                (a.MultipleOf.HasValue && b.MultipleOf.HasValue && a.MultipleOf.Equals(b.MultipleOf) ) &&
-                a.Nullable.Equals(b.Nullable) &&
-                (!string.IsNullOrWhiteSpace(a.Pattern) && !string.IsNullOrWhiteSpace(b.Pattern) && a.Pattern.Equals(b.Pattern)) &&
-                a.ReadOnly.Equals(b.ReadOnly) &&
-                (!string.IsNullOrWhiteSpace(a.Title) && !string.IsNullOrWhiteSpace(b.Title) && a.Title.Equals(b.Title)) &&
-                (!string.IsNullOrWhiteSpace(a.Type) && !string.IsNullOrWhiteSpace(b.Type) && a.Type.Equals(b.Type)) &&
-                (a.UniqueItems.HasValue && b.UniqueItems.HasValue && a.UniqueItems.Equals(b.UniqueItems)) &&
-                a.UnresolvedReference.Equals(b.UnresolvedReference) &&
-                a.WriteOnly.Equals(b.WriteOnly)
-                );
-        }
-
-
-        public static string ToReport(OpenApiSchema s, string sep = "; ")
-        {
-            var sb = new StringBuilder();
-
-            if (s.AdditionalProperties != null)
-            {
-                //sb.Append(s.AdditionalProperties.ToReport());
-            }
-
-            sb.Append($"Additional Properties Allowed: {s.AdditionalPropertiesAllowed}{sep}");
-            sb.Append($"Deprecated: {s.Deprecated}{sep}");
-            sb.Append($"Description: {s.Description}{sep}");
-            if (s.Discriminator != null)
-            {
-                sb.Append($"Discriminator: {s.Discriminator.PropertyName}{sep}");
-            }
-
-            if (s.Enum != null)
-            {
-                sb.Append("Enum: ");
-                foreach (var k in s.Enum)
-                {
-                    sb.Append(k.ToString());
-                    sb.Append(',');
-                }
-                sb.Append(sep);
-            }
-
-            if (s.Default != null)
-            {
-                sb.Append($"Default: {s.Default.AnyType} {sep}");
-            }
-
-            if (s.Example != null)
-            {
-                sb.Append($"Example: {s.Example}{sep}");
-            }
-
-            if (s.ExclusiveMaximum.HasValue)
-            {
-                sb.Append($"ExclusiveMaximum: {s.ExclusiveMaximum}{sep}");
-            }
-
-            if (s.ExclusiveMinimum.HasValue)
-            {
-                sb.Append($"ExclusiveMinimum: {s.ExclusiveMinimum}{sep}");
-            }
-
-            if (s.Extensions != null)
-            {
-                sb.Append("Extensions: ");
-                foreach (var d in s.Extensions)
-                {
-                    sb.Append($"{d.Key}: {d.Value}, ");
-                }
-                sb.Append(sep);
-            }
-
-            if (s.ExternalDocs != null)
-            {
-                sb.Append($"Ext. Docs: {s.ExternalDocs.Description} @ {s.ExternalDocs.Url} {sep}");
-            }
-
-            if (!string.IsNullOrWhiteSpace(s.Format))
-            {
-                sb.Append($"Format: {s.Format}{sep}");
-            }
-
-            if (s.Items != null)
-            {
-                // TODO
-            }
-
-            if (s.Maximum.HasValue)
-            {
-                sb.Append($"Maximum: {s.Maximum}{sep}");
-            }
-
-            if (s.MaxItems.HasValue)
-            {
-                sb.Append($"Max Items: {s.MaxItems}{sep}");
-            }
-
-            if (s.MaxLength.HasValue)
-            {
-                sb.Append($"Max Length: {s.MaxLength}{sep}");
-            }
-
-            if (s.MaxProperties.HasValue)
-            {
-                sb.Append($"Max Properties: {s.MaxProperties}{sep}");
-            }
-
-            if (s.Minimum.HasValue)
-            {
-                sb.Append($"Minimum: {s.Minimum}{sep}");
-            }
-
-            if (s.MinItems.HasValue)
-            {
-                sb.Append($"Min Items: {s.MinItems}{sep}");
-            }
-
-            if (s.MinLength.HasValue)
-            {
-                sb.Append($"Min Length: {s.MinLength}{sep}");
-            }
-
-            if (s.MinProperties.HasValue)
-            {
-                sb.Append($"Min Properties: {s.MinProperties}{sep}");
-            }
-
-            if (s.MultipleOf.HasValue)
-            {
-                sb.Append($"Multiple Of: {s.MultipleOf}{sep}");
-            }
-
-            if (s.Not != null)
-            {
-                sb.Append($"Not: {s.Not}{sep}");
-            }
-
-            sb.Append($"Nullable: {s.Nullable}{sep}");
-
-            if (s.OneOf != null)
-            {
-                foreach (var d in s.OneOf)
-                {
-                    // TODO
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(s.Pattern))
-            {
-                sb.Append($"Pattern: {s.Pattern}{sep}");
-            }
-
-            if (s.Properties != null)
-            {
-                sb.Append("Properties: ");
-                foreach (var d in s.Properties)
-                {
-                    sb.Append($"{d.Key}:{d.Value}, ");
-                }
-                sb.Append(sep);
-            }
-
-            sb.Append($"ReadOnly: {s.ReadOnly}{sep}");
-
-            if (s.Reference != null)
-            {
-                sb.Append($"{s.Reference.ExternalResource}, {s.Reference.Id}, {s.Reference?.Type}{sep}");
-            }
-
-            if(s.Required != null)
-            {
-                sb.Append("Required: ");
-                foreach(var d in s.Required)
-                {
-                    sb.Append($"{d}, ");
-                }
-                sb.Append(sep);
-            }
-
-            sb.Append($"Title: {s.Title}{sep}");
-
-            sb.Append($"Type: {s.Type}{sep}");
-
-            if(s.UniqueItems.HasValue)
-            {
-                sb.Append($"Unique Items: {s.UniqueItems}{sep}");
-            }
-
-            sb.Append($"Unresolved Reference: {s.UnresolvedReference}{sep}");
-
-            sb.Append($"Write Only: {s.WriteOnly}{sep}");
-
-            if((s.Xml != null) && !string.IsNullOrWhiteSpace(s.Xml.Name))
-            {
-                sb.Append($"XML Name: {s.Xml.Name}{sep}");
-            }
-
-            return sb.ToString();
-        }
-
-
         #region "Reports"
 
         public static void ExcelCsvDump(List<Models.SwaggerCompareItem> c, Models.SwaggerCompareToolOptions o)
@@ -1398,6 +1189,14 @@ namespace SwaggerCompareTool
                     file.Write(',');
                     file.Write('"');
                     file.Write("Message");
+                    file.Write('"');
+                    file.Write(',');
+                    file.Write('"');
+                    file.Write("Current");
+                    file.Write('"');
+                    file.Write(',');
+                    file.Write('"');
+                    file.Write("Previous");
                     file.WriteLine('"');
 
                     foreach (var d in c)
@@ -1416,6 +1215,14 @@ namespace SwaggerCompareTool
                         file.Write(",");
                         file.Write('"');
                         file.Write(d.Message);
+                        file.WriteLine('"');
+                        file.Write(",");
+                        file.Write('"');
+                        file.Write(SwaggerCompareItem.ToReport(d.CurrentSchema,"\n"));
+                        file.WriteLine('"');
+                        file.Write(",");
+                        file.Write('"');
+                        file.Write(SwaggerCompareItem.ToReport(d.PreviousSchema, "\n"));
                         file.WriteLine('"');
                     }
                 }
@@ -1458,6 +1265,8 @@ namespace SwaggerCompareTool
                     file.Write("<th scope='col'>Component</strong></th>");
                     file.Write("<th scope='col'>Element</strong></th>");
                     file.WriteLine("<th scope='col'>Message</strong></th>");
+                    file.WriteLine("<th scope='col'>Current</strong></th>");
+                    file.WriteLine("<th scope='col'>Previous</strong></th>");
                     file.WriteLine("</tr>");
 
                     foreach (var d in c)
@@ -1467,6 +1276,8 @@ namespace SwaggerCompareTool
                         file.Write($"<td scope='col'>{d.Element}</td>");
                         file.Write($"<td scope='col'>{d.ElementName}</td>");
                         file.WriteLine($"<td scope='col'>{d.Message}</td>");
+                        file.WriteLine($"<td scope='col'>{SwaggerCompareItem.ToReport(d.CurrentSchema, "<br/>")}</td>");
+                        file.WriteLine($"<td scope='col'>{SwaggerCompareItem.ToReport(d.PreviousSchema, "<br/>")}</td>");
                         file.WriteLine("</tr>");
                     }
 
@@ -1484,6 +1295,20 @@ namespace SwaggerCompareTool
         }
 
         #endregion
+
+        private static string List2String(IList<string> list, string sep) 
+        {
+            var sb = new StringBuilder();
+            if(list != null)
+            {
+                foreach(var d in list)
+                {
+                    sb.Append(d);
+                    sb.Append(sep);
+                }
+            }
+            return sb.ToString();
+        }
 
         #region "Global Error Handler"
 
