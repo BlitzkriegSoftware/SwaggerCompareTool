@@ -2,6 +2,7 @@
 using CommandLine.Text;
 using Microsoft.OpenApi.Models;
 using Microsoft.OpenApi.Readers;
+using Newtonsoft.Json;
 using SwaggerCompareTool.Models;
 using System;
 using System.Collections.Generic;
@@ -32,69 +33,90 @@ namespace SwaggerCompareTool
                        var arguments = CommandLine.Parser.Default.FormatCommandLine(o);
                        Console.WriteLine($"{arguments}");
 
-                       if (!File.Exists(o.Current))
+                       if (!string.IsNullOrWhiteSpace(o.Current) || !File.Exists(o.Current))
                        {
-                           Console.Error.WriteLine($"Current JSON Not Found: {o.Current}");
+                           Console.Error.WriteLine($"Current Swagger JSON Not Found: '{o.Current}'");
                            exitCode = -2;
                        }
 
-                       if (!File.Exists(o.Previous))
+                       if (!string.IsNullOrWhiteSpace(o.Previous) || !File.Exists(o.Previous))
                        {
-                           Console.Error.WriteLine($"Previous JSON Not Found: {o.Previous}");
+                           Console.Error.WriteLine($"Previous Swagger JSON Not Found: '{o.Previous}'");
                            exitCode = -3;
+                       }
+
+                       if(o.MakeRulesFile)
+                       {
+                           var model = o.Rules;
+                           var json = JsonConvert.SerializeObject(model);
+                           var filename = "SwaggerCompareRules.json";
+                           filename = Path.Join(o.OutputFolder, filename);
+                           File.WriteAllText(filename, json);
+                           exitCode = -5;
                        }
 
                        if (File.Exists(o.RuleFile))
                        {
-                           // TODO: Rule file
-                       }
-
-                       var streamCurrent = new MemoryStream(File.ReadAllBytes(o.Current));
-                       var currentApi = new OpenApiStreamReader().Read(streamCurrent, out var diagnosticCurrent);
-
-                       if (diagnosticCurrent.Errors.Count > 0)
-                       {
-                           exitCode = -4;
-                           Console.Error.WriteLine($"{o.Current} {diagnosticCurrent.SpecificationVersion} - Errors:");
-                           foreach (var e in diagnosticCurrent.Errors)
+                           try
                            {
-                               Console.Error.WriteLine($"\t{e.Message} at {e.Pointer}");
-                           }
-                       }
-
-                       var streamPrevious = new MemoryStream(File.ReadAllBytes(o.Previous));
-                       var previousApi = new OpenApiStreamReader().Read(streamPrevious, out var diagnosticPrevious);
-
-                       if (diagnosticCurrent.Errors.Count > 0)
-                       {
-                           exitCode = -5;
-                           Console.Error.WriteLine($"{o.Current} {diagnosticPrevious.SpecificationVersion} - Errors:");
-                           foreach (var e in diagnosticPrevious.Errors)
+                               var json = File.ReadAllText(o.RuleFile);
+                               var rules = JsonConvert.DeserializeObject<Models.SwaggerRuleSettings>(json);
+                               o.Rules = rules;
+                           } catch(Exception e)
                            {
-                               Console.Error.WriteLine($"\t{e.Message} at {e.Pointer}");
+                               Console.Error.WriteLine($"Unable to parse rule file {o.RuleFile}, {e.Message}");
+                               exitCode = -6;
                            }
                        }
 
                        if (exitCode == 0)
                        {
-                           var complaints = SwaggerCompare(currentApi, previousApi);
-                           exitCode = SwaggerIsBroken(complaints) ? 1 : 0;
+                           var streamCurrent = new MemoryStream(File.ReadAllBytes(o.Current));
+                           var currentApi = new OpenApiStreamReader().Read(streamCurrent, out var diagnosticCurrent);
 
-                           if (o.ExcelCsv)
+                           if (diagnosticCurrent.Errors.Count > 0)
                            {
-                               ExcelCsvDump(complaints, o);
+                               exitCode = -4;
+                               Console.Error.WriteLine($"{o.Current} {diagnosticCurrent.SpecificationVersion} - Errors:");
+                               foreach (var e in diagnosticCurrent.Errors)
+                               {
+                                   Console.Error.WriteLine($"\t{e.Message} at {e.Pointer}");
+                               }
                            }
 
-                           if (o.JsonDump)
+                           var streamPrevious = new MemoryStream(File.ReadAllBytes(o.Previous));
+                           var previousApi = new OpenApiStreamReader().Read(streamPrevious, out var diagnosticPrevious);
+
+                           if (diagnosticCurrent.Errors.Count > 0)
                            {
-                               JsonDump(complaints, o);
+                               exitCode = -5;
+                               Console.Error.WriteLine($"{o.Current} {diagnosticPrevious.SpecificationVersion} - Errors:");
+                               foreach (var e in diagnosticPrevious.Errors)
+                               {
+                                   Console.Error.WriteLine($"\t{e.Message} at {e.Pointer}");
+                               }
                            }
 
-                           if (o.WebReport)
+                           if (exitCode == 0)
                            {
-                               WebReport(complaints, o);
-                           }
+                               var complaints = SwaggerCompare(currentApi, previousApi, o.Rules);
+                               exitCode = SwaggerIsBroken(complaints) ? 1 : 0;
 
+                               if (o.ExcelCsv)
+                               {
+                                   ExcelCsvDump(complaints, o);
+                               }
+
+                               if (o.JsonDump)
+                               {
+                                   JsonDump(complaints, o);
+                               }
+
+                               if (o.WebReport)
+                               {
+                                   WebReport(complaints, o);
+                               }
+                           }
                        }
 
                    }).WithNotParsed(errs =>
@@ -127,7 +149,7 @@ namespace SwaggerCompareTool
             return isBroken;
         }
 
-        public static List<Models.SwaggerCompareItem> SwaggerCompare(OpenApiDocument current, OpenApiDocument previous)
+        public static List<Models.SwaggerCompareItem> SwaggerCompare(OpenApiDocument current, OpenApiDocument previous, Models.SwaggerRuleSettings rules)
         {
             var c = new List<Models.SwaggerCompareItem>();
 
@@ -137,7 +159,7 @@ namespace SwaggerCompareTool
             {
                 c.Add(new Models.SwaggerCompareItem()
                 {
-                    Severity = Models.SwaggerErrorSeverity.Information,
+                    Severity = rules.Info_Title,
                     Element = Models.SwaggerCompareElement.Info,
                     ElementName = "Title",
                     Message = $"{previous.Info.Title} => {current.Info.Title}"
@@ -150,7 +172,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Information,
+                        Severity = rules.Info_Terms_of_Use,
                         Element = Models.SwaggerCompareElement.Info,
                         ElementName = "TermsOfService",
                         Message = $"{previous.Info.TermsOfService?.ToString()} => {current.Info.TermsOfService?.ToString()}"
@@ -162,7 +184,7 @@ namespace SwaggerCompareTool
             {
                 c.Add(new Models.SwaggerCompareItem()
                 {
-                    Severity = Models.SwaggerErrorSeverity.Information,
+                    Severity = rules.Info_Description,
                     Element = Models.SwaggerCompareElement.Info,
                     ElementName = "Description",
                     Message = $"{previous.Info.Description} => {current.Info.Description}"
@@ -173,10 +195,10 @@ namespace SwaggerCompareTool
             {
                 c.Add(new Models.SwaggerCompareItem()
                 {
-                    Severity = Models.SwaggerErrorSeverity.Warning,
+                    Severity = rules.Info_Version,
                     Element = Models.SwaggerCompareElement.Info,
                     ElementName = "Version",
-                    Message = $"{previous.Info.License.Url.ToString()} => {current.Info.License.Url.ToString()}"
+                    Message = $"{previous.Info.License.Url} => {current.Info.License.Url}"
                 });
             }
 
@@ -184,7 +206,7 @@ namespace SwaggerCompareTool
             {
                 c.Add(new Models.SwaggerCompareItem()
                 {
-                    Severity = Models.SwaggerErrorSeverity.Information,
+                    Severity = rules.Info_Contact_Email,
                     Element = Models.SwaggerCompareElement.Info,
                     ElementName = "Contact.eMail",
                     Message = $"{previous.Info.Contact.Email} => {current.Info.Contact.Email}"
@@ -195,7 +217,7 @@ namespace SwaggerCompareTool
             {
                 c.Add(new Models.SwaggerCompareItem()
                 {
-                    Severity = Models.SwaggerErrorSeverity.Information,
+                    Severity = rules.Info_Contact_Name,
                     Element = Models.SwaggerCompareElement.Info,
                     ElementName = "Contact.Name",
                     Message = $"{previous.Info.Contact.Name} => {current.Info.Contact.Name}"
@@ -206,7 +228,7 @@ namespace SwaggerCompareTool
             {
                 c.Add(new Models.SwaggerCompareItem()
                 {
-                    Severity = Models.SwaggerErrorSeverity.Information,
+                    Severity = rules.Info_Contact_Url,
                     Element = Models.SwaggerCompareElement.Info,
                     ElementName = "Contact.Url",
                     Message = $"{previous.Info.Contact.Url} => {current.Info.Contact.Url}"
@@ -217,7 +239,7 @@ namespace SwaggerCompareTool
             {
                 c.Add(new Models.SwaggerCompareItem()
                 {
-                    Severity = Models.SwaggerErrorSeverity.Information,
+                    Severity = rules.Info_License_Name,
                     Element = Models.SwaggerCompareElement.Info,
                     ElementName = "License.Name",
                     Message = $"{previous.Info.License.Name} => {current.Info.License.Name}"
@@ -228,10 +250,10 @@ namespace SwaggerCompareTool
             {
                 c.Add(new Models.SwaggerCompareItem()
                 {
-                    Severity = Models.SwaggerErrorSeverity.Information,
+                    Severity = rules.Info_License_Url,
                     Element = Models.SwaggerCompareElement.Info,
                     ElementName = "License.Url",
-                    Message = $"{previous.Info.License.Url.ToString()} => {current.Info.License.Url.ToString()}"
+                    Message = $"{previous.Info.License.Url} => {current.Info.License.Url}"
                 });
             }
 
@@ -247,8 +269,8 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
+                        Severity = rules.Server_Description,
                         Element = Models.SwaggerCompareElement.Servers,
-                        Severity = Models.SwaggerErrorSeverity.Information,
                         ElementName = item.Description,
                         Message = $"Previous Missing: {s.Description}"
                     });
@@ -259,8 +281,8 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
+                        Severity = rules.Server_Url,
                         Element = Models.SwaggerCompareElement.Servers,
-                        Severity = Models.SwaggerErrorSeverity.Information,
                         ElementName = item.Url,
                         Message = $"Previous Missing: {s.Url}"
                     });
@@ -275,8 +297,8 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
+                        Severity = rules.Server_Description,
                         Element = Models.SwaggerCompareElement.Servers,
-                        Severity = Models.SwaggerErrorSeverity.Information,
                         ElementName = item.Description,
                         Message = $"Current Missing: {s.Description}"
                     });
@@ -287,8 +309,8 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
+                        Severity = rules.Server_Url,
                         Element = Models.SwaggerCompareElement.Servers,
-                        Severity = Models.SwaggerErrorSeverity.Information,
                         ElementName = item.Url,
                         Message = $"Current Missing: {s.Url}"
                     });
@@ -306,7 +328,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Error,
+                        Severity = rules.Paths_VersionSame_Missing_Operation,
                         Element = Models.SwaggerCompareElement.Paths,
                         ElementName = "Paths.Key",
                         Message = $"Previous Missing Key: {d.Key}"
@@ -318,7 +340,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Error,
+                            Severity = rules.Paths_VersionSame_Missing_Operation,
                             Element = Models.SwaggerCompareElement.Paths,
                             ElementName = "Paths.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Current: {d.Value}, Previous: {item.Value}"
@@ -334,7 +356,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Error,
+                        Severity = rules.Paths_VersionSame_Missing_Operation,
                         Element = Models.SwaggerCompareElement.Paths,
                         ElementName = "Paths.Key",
                         Message = $"Current Missing Key: {d.Key}"
@@ -346,7 +368,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Error,
+                            Severity = rules.Paths_VersionSame_Missing_Operation,
                             Element = Models.SwaggerCompareElement.Paths,
                             ElementName = "Paths.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Previous: {d.Value}, Current: {item.Value}"
@@ -366,7 +388,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.DefaultLevel,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "Callbacks.Key",
                         Message = $"Previous Missing Key: {d.Key}"
@@ -378,7 +400,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.DefaultLevel,
                             Element = Models.SwaggerCompareElement.Components,
                             ElementName = "Callbacks.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Current: {d.Value}, Previous: {item.Value}"
@@ -394,7 +416,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.DefaultLevel,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "Callbacks.Key",
                         Message = $"Current Missing Key: {d.Key}"
@@ -406,7 +428,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.DefaultLevel,
                             Element = Models.SwaggerCompareElement.Components,
                             ElementName = "Callbacks.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Previous: {d.Value}, Current: {item.Value}"
@@ -422,7 +444,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.DefaultLevel,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "Examples.Key",
                         Message = $"Previous Missing Key: {d.Key}"
@@ -434,7 +456,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.DefaultLevel,
                             Element = Models.SwaggerCompareElement.Paths,
                             ElementName = "Examples.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Current: {d.Value}, Previous: {item.Value}"
@@ -450,7 +472,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.DefaultLevel,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "Examples.Key",
                         Message = $"Current Missing Key: {d.Key}"
@@ -462,7 +484,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.DefaultLevel,
                             Element = Models.SwaggerCompareElement.Components,
                             ElementName = "Examples.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Previous: {d.Value}, Current: {item.Value}"
@@ -478,7 +500,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.DefaultLevel,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "Extensions.Key",
                         Message = $"Previous Missing Key: {d.Key}"
@@ -490,7 +512,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.DefaultLevel,
                             Element = Models.SwaggerCompareElement.Paths,
                             ElementName = "Extensions.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Current: {d.Value}, Previous: {item.Value}"
@@ -506,7 +528,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.DefaultLevel,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "Extensions.Key",
                         Message = $"Current Missing Key: {d.Key}"
@@ -518,7 +540,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.DefaultLevel,
                             Element = Models.SwaggerCompareElement.Components,
                             ElementName = "Extensions.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Previous: {d.Value}, Current: {item.Value}"
@@ -534,7 +556,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.Components_Schemas_Headers_NoMatch,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "Headers.Key",
                         Message = $"Previous Missing Key: {d.Key}"
@@ -546,7 +568,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.Components_Schemas_Headers_NoMatch,
                             Element = Models.SwaggerCompareElement.Paths,
                             ElementName = "Headers.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Current: {d.Value}, Previous: {item.Value}"
@@ -562,7 +584,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.Components_Schemas_Headers_NoMatch,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "Headers.Key",
                         Message = $"Current Missing Key: {d.Key}"
@@ -574,7 +596,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.Components_Schemas_Headers_NoMatch,
                             Element = Models.SwaggerCompareElement.Components,
                             ElementName = "Headers.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Previous: {d.Value}, Current: {item.Value}"
@@ -590,7 +612,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.DefaultLevel,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "Links.Key",
                         Message = $"Previous Missing Key: {d.Key}"
@@ -602,7 +624,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.DefaultLevel,
                             Element = Models.SwaggerCompareElement.Paths,
                             ElementName = "Links.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Current: {d.Value}, Previous: {item.Value}"
@@ -618,7 +640,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.DefaultLevel,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "Links.Key",
                         Message = $"Current Missing Key: {d.Key}"
@@ -630,7 +652,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.DefaultLevel,
                             Element = Models.SwaggerCompareElement.Components,
                             ElementName = "Links.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Previous: {d.Value}, Current: {item.Value}"
@@ -646,7 +668,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.Components_Schemas_Parameters,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "Parameters.Key",
                         Message = $"Previous Missing Key: {d.Key}"
@@ -658,7 +680,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.Components_Schemas_Parameters,
                             Element = Models.SwaggerCompareElement.Paths,
                             ElementName = "Parameters.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Current: {d.Value}, Previous: {item.Value}"
@@ -674,7 +696,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.Components_Schemas_Parameters,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "Parameters.Key",
                         Message = $"Current Missing Key: {d.Key}"
@@ -686,7 +708,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.Components_Schemas_Parameters,
                             Element = Models.SwaggerCompareElement.Components,
                             ElementName = "Parameters.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Previous: {d.Value}, Current: {item.Value}"
@@ -702,7 +724,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.Components_Schemas_RequestBodies,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "RequestBodies.Key",
                         Message = $"Previous Missing Key: {d.Key}"
@@ -714,7 +736,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.Components_Schemas_RequestBodies,
                             Element = Models.SwaggerCompareElement.Paths,
                             ElementName = "RequestBodies.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Current: {d.Value}, Previous: {item.Value}"
@@ -730,7 +752,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.Components_Schemas_RequestBodies,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "RequestBodies.Key",
                         Message = $"Current Missing Key: {d.Key}"
@@ -742,7 +764,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.Components_Schemas_RequestBodies,
                             Element = Models.SwaggerCompareElement.Components,
                             ElementName = "RequestBodies.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Previous: {d.Value}, Current: {item.Value}"
@@ -758,7 +780,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.Components_Schemas_Responses,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "Responses.Key",
                         Message = $"Previous Missing Key: {d.Key}"
@@ -770,7 +792,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.Components_Schemas_Responses,
                             Element = Models.SwaggerCompareElement.Paths,
                             ElementName = "Responses.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Current: {d.Value}, Previous: {item.Value}"
@@ -786,7 +808,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.Components_Schemas_Responses,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "Responses.Key",
                         Message = $"Current Missing Key: {d.Key}"
@@ -798,7 +820,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.Components_Schemas_Responses,
                             Element = Models.SwaggerCompareElement.Components,
                             ElementName = "Responses.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Previous: {d.Value}, Current: {item.Value}"
@@ -814,9 +836,9 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.Components_Schemas_Missing,
                         Element = Models.SwaggerCompareElement.Components,
-                        ElementName = "Schemas.Key",
+                        ElementName = "Components.Schemas.Key",
                         Message = $"Previous Missing Key: {d.Key}"
                     });
                 }
@@ -827,9 +849,9 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.Paths_VersionSame_Contact_Mismatch,
                             Element = Models.SwaggerCompareElement.Paths,
-                            ElementName = "Schemas.Key.Value",
+                            ElementName = "Components.Schemas.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: {List2String(complaints, "; ")}",
                             CurrentSchema = d.Value,
                             PreviousSchema = item.Value
@@ -845,7 +867,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.Components_Schemas_Missing,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "Schemas.Key",
                         Message = $"Current Missing Key: {d.Key}"
@@ -858,7 +880,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.Paths_VersionSame_Contact_Mismatch,
                             Element = Models.SwaggerCompareElement.Components,
                             ElementName = "Schemas.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: {List2String(complaints, "; ")}",
@@ -876,7 +898,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.Components_Security_Mismatch,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "SecuritySchemes.Key",
                         Message = $"Previous Missing Key: {d.Key}"
@@ -888,7 +910,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.Components_Security_Mismatch,
                             Element = Models.SwaggerCompareElement.Paths,
                             ElementName = "SecuritySchemes.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Current: {d.Value}, Previous: {item.Value}"
@@ -904,7 +926,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.Components_Security_Mismatch,
                         Element = Models.SwaggerCompareElement.Components,
                         ElementName = "SecuritySchemes.Key",
                         Message = $"Current Missing Key: {d.Key}"
@@ -916,7 +938,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.Components_Security_Mismatch,
                             Element = Models.SwaggerCompareElement.Components,
                             ElementName = "SecuritySchemes.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Previous: {d.Value}, Current: {item.Value}"
@@ -936,7 +958,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.DefaultLevel,
                         Element = Models.SwaggerCompareElement.Extensions,
                         ElementName = "Extensions.Key",
                         Message = $"Previous Missing Key: {d.Key}"
@@ -948,7 +970,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.DefaultLevel,
                             Element = Models.SwaggerCompareElement.Extensions,
                             ElementName = "Extensions.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Current: {d.Value}, Previous: {item.Value}"
@@ -964,7 +986,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.DefaultLevel,
                         Element = Models.SwaggerCompareElement.Extensions,
                         ElementName = "Extensions.Key",
                         Message = $"Current Missing Key: {d.Key}"
@@ -976,7 +998,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.DefaultLevel,
                             Element = Models.SwaggerCompareElement.Extensions,
                             ElementName = "Extensions.Key.Value",
                             Message = $"Missmatched Value: {d.Key}: Previous: {d.Value}, Current: {item.Value}"
@@ -998,7 +1020,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.DefaultLevel,
                             Element = Models.SwaggerCompareElement.ExternalDocs,
                             ElementName = "ExternalDocs.Extensions.Key",
                             Message = $"Previous Missing Key: {d.Key}"
@@ -1010,7 +1032,7 @@ namespace SwaggerCompareTool
                         {
                             c.Add(new Models.SwaggerCompareItem()
                             {
-                                Severity = Models.SwaggerErrorSeverity.Warning,
+                                Severity = rules.DefaultLevel,
                                 Element = Models.SwaggerCompareElement.ExternalDocs,
                                 ElementName = "ExternalDocs.Extensions.Key.Value",
                                 Message = $"Missmatched Value: {d.Key}: Current: {d.Value}, Previous: {item.Value}"
@@ -1023,7 +1045,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.DefaultLevel,
                         Element = Models.SwaggerCompareElement.ExternalDocs,
                         ElementName = "ExternalDocs.Description",
                         Message = $"Current: {current.ExternalDocs.Description}, Previous: {previous.ExternalDocs.Description}"
@@ -1034,7 +1056,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.DefaultLevel,
                         Element = Models.SwaggerCompareElement.ExternalDocs,
                         ElementName = "ExternalDocs.Url",
                         Message = $"Current: {current.ExternalDocs.Url}, Previous: {previous.ExternalDocs.Url}"
@@ -1085,7 +1107,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.Tag_Mismatch,
                         Element = Models.SwaggerCompareElement.Tags,
                         ElementName = "Tags.Name",
                         Message = $"Previous Tags.Name {d.Name} is missing"
@@ -1096,7 +1118,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.Tag_Mismatch,
                             Element = Models.SwaggerCompareElement.Tags,
                             ElementName = "Tags.Desciption",
                             Message = $"Mismatched. Current: {d.Description}, Previous: {item.Description}"
@@ -1107,7 +1129,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.Tag_Mismatch,
                             Element = Models.SwaggerCompareElement.Tags,
                             ElementName = "Tags.Reference.ExternalResource",
                             Message = $"Mismatched. Current: {d.Reference.ExternalResource}, Previous: {item.Reference.ExternalResource}"
@@ -1124,7 +1146,7 @@ namespace SwaggerCompareTool
                 {
                     c.Add(new Models.SwaggerCompareItem()
                     {
-                        Severity = Models.SwaggerErrorSeverity.Warning,
+                        Severity = rules.Tag_Mismatch,
                         Element = Models.SwaggerCompareElement.Tags,
                         ElementName = "Tags.Name",
                         Message = $"Current Tags.Name {d.Name} is missing"
@@ -1137,7 +1159,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.Tag_Mismatch,
                             Element = Models.SwaggerCompareElement.Tags,
                             ElementName = "Tags.Desciption",
                             Message = $"Mismatched. Previous: {d.Description}, Current: {item.Description}"
@@ -1148,7 +1170,7 @@ namespace SwaggerCompareTool
                     {
                         c.Add(new Models.SwaggerCompareItem()
                         {
-                            Severity = Models.SwaggerErrorSeverity.Warning,
+                            Severity = rules.Tag_Mismatch,
                             Element = Models.SwaggerCompareElement.Tags,
                             ElementName = "Tags.Reference.ExternalResource",
                             Message = $"Mismatched. Previous: {d.Reference.ExternalResource}, Current: {item.Reference.ExternalResource}"

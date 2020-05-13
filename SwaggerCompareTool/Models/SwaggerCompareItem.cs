@@ -9,7 +9,7 @@ namespace SwaggerCompareTool.Models
     public class SwaggerCompareItem
     {
         public SwaggerCompareElement Element { get; set; } = SwaggerCompareElement.Unknown;
-        public SwaggerErrorSeverity Severity { get; set; } = SwaggerErrorSeverity.Unknown;
+        public SwaggerErrorSeverity Severity { get; set; } = SwaggerErrorSeverity.None;
 
         public string ElementName { get; set; }
 
@@ -30,7 +30,11 @@ namespace SwaggerCompareTool.Models
         {
             if (complaints == null) complaints = new List<string>();
 
-            if (actual == null && expected == null)
+            if (actual == null)
+            {
+                return false;
+            }
+            if (expected == null)
             {
                 return false;
             }

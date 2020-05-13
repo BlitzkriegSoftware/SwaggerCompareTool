@@ -9,13 +9,13 @@ namespace SwaggerCompareTool.Models
         [Option('v', "Verbose", Default = false, HelpText = "Enable Verbose Output")]
         public bool Verbose { get; set; }
 
-        [Option('c', "Current", Required = true, HelpText = "Current OpenAPI Json")]
+        [Option('c', "Current", Required = false, HelpText = "Current OpenAPI Json")]
         public string Current { get; set; }
 
-        [Option('p', "Previous", Required = true, HelpText = "Previous OpenAPI Json")]
+        [Option('p', "Previous", Required = false, HelpText = "Previous OpenAPI Json")]
         public string Previous { get; set; }
 
-        [Option('w', "web-report", Default = true, HelpText = "HTML Report")]
+        [Option('w', "web-report", Default = false, HelpText = "HTML Report")]
         public bool WebReport { get; set; }
 
         [Option('j', "JsonDump", Default = false, HelpText = "JSON Dump")]
@@ -30,7 +30,27 @@ namespace SwaggerCompareTool.Models
         [Option('o', "OutputFolder", Default = @".\", HelpText = "Output Folder for Reports")]
         public string OutputFolder { get; set; } = @".\";
 
+        [Option('m', "MakeRulesFile", Default = false, HelpText = "Make a sample rule file")]
+        public bool MakeRulesFile { get; set; } = false;
+
         public string ReportName { get; set; } = "SwaggerCompareReport.txt";
+
+        private SwaggerRuleSettings _rules;
+
+        public SwaggerRuleSettings Rules { 
+            get
+            {
+                if(this._rules == null)
+                {
+                    this._rules = new SwaggerRuleSettings();
+                } 
+                return this._rules;
+            }
+            set
+            {
+                this._rules = value;
+            }
+        }
 
         /// <summary>
         /// Help
@@ -47,7 +67,6 @@ namespace SwaggerCompareTool.Models
                 };
             }
         }
-
 
     }
 }
