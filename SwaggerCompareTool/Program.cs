@@ -33,13 +33,13 @@ namespace SwaggerCompareTool
                        var arguments = CommandLine.Parser.Default.FormatCommandLine(o);
                        Console.WriteLine($"{arguments}");
 
-                       if (!string.IsNullOrWhiteSpace(o.Current) || !File.Exists(o.Current))
+                       if (string.IsNullOrWhiteSpace(o.Current) || !File.Exists(o.Current))
                        {
                            Console.Error.WriteLine($"Current Swagger JSON Not Found: '{o.Current}'");
                            exitCode = -2;
                        }
 
-                       if (!string.IsNullOrWhiteSpace(o.Previous) || !File.Exists(o.Previous))
+                       if (string.IsNullOrWhiteSpace(o.Previous) || !File.Exists(o.Previous))
                        {
                            Console.Error.WriteLine($"Previous Swagger JSON Not Found: '{o.Previous}'");
                            exitCode = -3;
@@ -131,6 +131,27 @@ namespace SwaggerCompareTool
             Environment.ExitCode = exitCode;
         }
 
+        #region "Swagger Compare Tools"
+
+        public static int MajorVersionGetter(string s)
+        {
+            int major = 0;
+
+            if(!string.IsNullOrWhiteSpace(s))
+            {
+                foreach(var c in s)
+                {
+                    if(char.IsDigit(c))
+                    {
+                        major = int.Parse(c.ToString());
+                        break;
+                    }
+                }
+            }
+
+            return major;
+        }
+
         public static bool SwaggerIsBroken(List<Models.SwaggerCompareItem> complaints)
         {
             bool isBroken = false;
@@ -152,6 +173,38 @@ namespace SwaggerCompareTool
         public static List<Models.SwaggerCompareItem> SwaggerCompare(OpenApiDocument current, OpenApiDocument previous, Models.SwaggerRuleSettings rules)
         {
             var c = new List<Models.SwaggerCompareItem>();
+
+            #region "Version Checking"
+
+            var currentVersionMajor = MajorVersionGetter(current?.Info?.Version);
+            var previousVersionMajor = MajorVersionGetter(previous?.Info?.Version);
+
+            bool isSameVersion = (currentVersionMajor != 0) && (previousVersionMajor != 0) && (currentVersionMajor.Equals(previousVersionMajor));
+            var isBreaking = (currentVersionMajor != 0) && (previousVersionMajor != 0) && (currentVersionMajor > previousVersionMajor);
+            
+            if(isBreaking)
+            {
+                c.Add(new SwaggerCompareItem()
+                {
+                    Severity = rules.Breaking_Change,
+                    Element = Models.SwaggerCompareElement.Info,
+                    ElementName = "Info.Version (Breaking)",
+                    Message = $"Version: previous: {previousVersionMajor}, current: {currentVersionMajor}"
+                });
+            }
+
+            if (current.Info.Version.CompareTo(previous.Info.Version) != 0)
+            {
+                c.Add(new Models.SwaggerCompareItem()
+                {
+                    Severity = rules.Info_Version,
+                    Element = Models.SwaggerCompareElement.Info,
+                    ElementName = "Version",
+                    Message = $"{previous.Info.Version} => {current.Info.Version}"
+                });
+            }
+
+            #endregion
 
             #region "Info"
 
@@ -188,17 +241,6 @@ namespace SwaggerCompareTool
                     Element = Models.SwaggerCompareElement.Info,
                     ElementName = "Description",
                     Message = $"{previous.Info.Description} => {current.Info.Description}"
-                });
-            }
-
-            if (current.Info.Version.CompareTo(previous.Info.Version) != 0)
-            {
-                c.Add(new Models.SwaggerCompareItem()
-                {
-                    Severity = rules.Info_Version,
-                    Element = Models.SwaggerCompareElement.Info,
-                    ElementName = "Version",
-                    Message = $"{previous.Info.License.Url} => {current.Info.License.Url}"
                 });
             }
 
@@ -1186,6 +1228,8 @@ namespace SwaggerCompareTool
             return c;
         }
 
+        #endregion
+
         #region "Reports"
 
         public static void ExcelCsvDump(List<Models.SwaggerCompareItem> c, Models.SwaggerCompareToolOptions o)
@@ -1316,14 +1360,12 @@ namespace SwaggerCompareTool
             Console.WriteLine($"HTML: {reportName}");
         }
 
-        #endregion
-
-        private static string List2String(IList<string> list, string sep) 
+        private static string List2String(IList<string> list, string sep)
         {
             var sb = new StringBuilder();
-            if(list != null)
+            if (list != null)
             {
-                foreach(var d in list)
+                foreach (var d in list)
                 {
                     sb.Append(d);
                     sb.Append(sep);
@@ -1331,6 +1373,8 @@ namespace SwaggerCompareTool
             }
             return sb.ToString();
         }
+
+        #endregion
 
         #region "Global Error Handler"
 

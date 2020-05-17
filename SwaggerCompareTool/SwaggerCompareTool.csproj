@@ -9,9 +9,9 @@
     <Copyright>Copyright © 2019-2020 Blitzkrieg Software</Copyright>
     <Company>Blitzkrieg Software</Company>
     <Description>Swagger Compare Tool</Description>
-    <InformationalVersion>1.3.0</InformationalVersion>
-    <FileVersion>1.3.0</FileVersion>
-    <AssemblyVersion>1.3.0</AssemblyVersion>
+    <InformationalVersion>1.4.0</InformationalVersion>
+    <FileVersion>1.4.0</FileVersion>
+    <AssemblyVersion>1.4.0</AssemblyVersion>
   </PropertyGroup>
   
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
